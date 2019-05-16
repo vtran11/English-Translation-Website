@@ -1,5 +1,0 @@
-You need to implement a web application that is split in 
-three parts, namely, Webpage, PHP and MySQL. Each of them will be used 
-accordingly to solve a simple problem described above. Remember to 
-implement the logic in the most secure way of your knowledge.
-

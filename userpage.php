@@ -3,7 +3,6 @@
 	require_once 'db-connect.php';
 	//Connect to database
 	$db = mysqli_connect($server, $user, $pass, $dbname);
-
 	$email    = "";
 	$username = "";
 	$error = false; 
@@ -95,5 +94,5 @@
 			header('location: translate.php');
 		}
 	}
-
+mysqli_close($db);
 ?>
