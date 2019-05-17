@@ -1,5 +1,6 @@
 <?php
   include_once "db-connect.php";
+  include_once "default_model.php";
 
   session_start(); 
 
@@ -7,24 +8,81 @@
   $conn = new mysqli($server,$user,$pass,$dbname);
   if ($conn->connect_error) die($conn->connect_error);
 
+  //*********************** If No Logged In User *********************************
+  if (!isset($_SESSION['username'])) 
+	{
+    //User selects login then natigate to login page
+    if (isset($_GET['login'])){
+		  header("location: loginpage.php");
+	  }
+
+    //User selects register then natigate to register page
+    else if (isset($_GET['register'])){
+		  header("location: registerpage.php");
+    }
+
+    //If Input in english is entered
+    if( isset($_POST['textinput']))
+    {
+      $input = strtolower(get_post($conn, 'textinput'));
+      if(array_key_exists("$input", $eng_to_viet)){
+        $translation = $eng_to_viet["$input"];  
+        echo "English: ".$input.", Vietnamese: ".$translation;
+      }
+      else {
+        $error_type = "Please enter valid English words!";
+        echo "<script type='text/javascript'>alert('$error_type');</script>";
+      }
+    }
+  }
+
+  //*********************** If User is logged in *********************************
 	if (isset($_SESSION['username'])) 
 	{
     $username = $_SESSION['username'];
+    $exist_model = false;
 
-    //Check if files are uploaded and save data to database
-    if($_FILES)
+    $query = "SELECT * FROM translateModel";
+    $result = $conn->query($query);
+    if (!$result) die ("Database access failed: ".$conn->error);
+    $rows = $result->num_rows;
+
+    for ($j = 0 ; $j < $rows ; ++$j){
+      $result->data_seek($j);
+      $row = $result->fetch_array(MYSQLI_NUM);
+
+	    //if user has saved model
+      if ('$row[0]' == '$username'){
+        $exist_model = true;
+	    }   
+    }
+
+    //When user upload new files or enter input when the translation model DOES exist
+    if($exist_model == true){
+      echo "User $username already uploaded a Translation Model! Don't upload a new one!<br>";
+
+      //Flag when user trying to upload a new model
+      if($_FILES){
+        $error_type = "You already uploaded a Translation Model! Don't upload a new one!<br>";
+        echo "<script type='text/javascript'>alert('$error_type');</script>";
+      }
+      else{
+          //If Input in english is entered
+          if( isset($_POST['textinput']))
+          {
+            //user has saved translate model case @@@@@@@@@@@@@@@@@@@
+
+          }
+      }
+    }  
+    //When user upload new files or enter input when the translation model DOESNOT exist
+    else 
     {
-       /* $name1 = $_FILES['filename1']['name']; 
-        $name2 = $_FILES['filename2']['name']; 
-        $name1 = strtolower(preg_replace("/[^A-Za-z0-9.]/", "", $file1));
-        $name2 = strtolower(preg_replace("/[^A-Za-z0-9.]/", "", $file2));
-        switch($_FILES['file1']['type'] or $_FILES['file1']['type'])
-        {
-          case 'text/plain': $ext='txt';break;
-          default          : $ext=''; break;
-        }
-        if($ext) 
-        {*/
+      echo "User $username don't have any Translation Model in the system!<br>";
+
+      //Upload the files and save data to database
+      if($_FILES)
+      {
           $name1 = "$name1.$ext";
           $name2 = "$name2.$ext";
           $file1 = $_FILES['filename1']['name'];
@@ -43,94 +101,39 @@
     
           if (!$result) 
             echo "INSERT failed: $query<br>".$conn->error."<br><br>";
-        //}
+      }
+      else //No file uploaded
+      {
+        //If Input in english is entered, use default model
+        if( isset($_POST['textinput']))
+        {
+          $input = strtolower(get_post($conn, 'textinput'));
+          if(array_key_exists("$input", $eng_to_viet)){
+            $translation = $eng_to_viet["$input"];  
+            echo "English: ".$input.", Vietnamese: ".$translation;
+          }
+          else {
+            $error_type = "Please enter valid English words!";
+            echo "<script type='text/javascript'>alert('$error_type');</script>";
+          }
+        }
+      }
     }
-    else "No file was uploaded!";
-	}
-
-	if (isset($_GET['logout']))
-	{
-		session_destroy();
-		unset($_SESSION['username']);
-  }
-  
-  if (isset($_GET['login']))
-	{
-		header("location: loginpage.php");
-	}
-
-  if (isset($_GET['register']))
-	{
-		header("location: registerpage.php");
-  }
-
-  //DELETE RECORD
-  if (isset($_POST['delete']) && isset($_POST['id'])) 
-    {
-        $id = get_post($conn, 'id');
-        $query = "DELETE FROM input WHERE id='$id'"; 
-        $result = $conn->query($query);
-        if (!$result) 
-                echo "DELETE failed: $query<br>".$conn->error."<br><br>";
     
+    //user selects logout then sesion destroys
+	  if (isset($_GET['logout'])){
+		  session_destroy();
+		  unset($_SESSION['username']);
     }
+	}
   
-  //If User is logged in
-  if (isset($_SESSION['username'])) 
-	{
-    $username = $_SESSION['username'];
-  }
-  //If No Logged In User
-  else if (!isset($_SESSION['username'])) 
-	{
 
-  }
-  
-      
-
-    //If Input in english is entered
-    if( isset($_POST['textinput']))
-    {
-        $file = get_post($conn, 'file'); 
-        $content = get_post($conn, 'content'); 
-        // this should be select query to check the files, and print out the translation
-        $query = "INSERT INTO input(file,content) VALUES"."('$file', '$content')"; 
-        $result = $conn->query($query);
-        if (!$result) 
-          echo "INSERT failed: $query<br>".$conn->error."<br><br>";
-    }
-
-
-  //Display database info: content names and file contents on the web server   
-  $query = "SELECT * FROM input";
-  $result = $conn->query($query);
-  if (!$result) die ("Database access failed: ".$conn->error);
-  $rows = $result->num_rows;
-     
-  for ($j = 0 ; $j < $rows ; ++$j)
-  {
-       $result->data_seek($j);
-       $row = $result->fetch_array(MYSQLI_NUM);
-       echo <<<_END
-       <pre>
-       Input Words: $row[1]
-       Translation in English: $row[2]
-       </pre>
-       <form action="translate.php" method="post">
-       <input type="hidden" name="delete" value="yes">
-       <input type="hidden" name="id" value="$row[0]">
-       <input type="submit" value="DELETE RECORD"></form>
-_END;
-  }
-
-  $result->close();
   $conn->close();
   
   function get_post($conn, $var) {
        return $conn->real_escape_string($_POST[$var]); 
   }
 ?>
-
 
 <!DOCTYPE html>
 <html>
@@ -216,7 +219,6 @@ _END;
         <i class="fa fa-caret-down"></i>
       </button>
       <div class="dropdown-content">
-        <a href="#">User's Content</a>
         <a href="translate.php?logout='1'">Log Out</a>
       </div>
     <?php endif ?>
@@ -244,15 +246,16 @@ _END;
     </form>
   
     <form action="translate.php" method="post"><pre>
-      Input in English: <input type="text" name="textinput">
+      Enter your input in English: <input type="text" name="textinput">
       <input type="submit" value="TRANSLATE"></pre>
     </form>
   <?php endif ?>
 
   <?php  if (!isset($_SESSION['username'])) : ?>
     <form action="translate.php" method="post"><pre>
-      Input in English: <input type="text" name="textinput">
+      Enter your input in English: <input type="text" name="textinput">
       <input type="submit" value="TRANSLATE"></pre>
+      <output type="text" ID="add" name="textoutput" value="fv"></pre>
     </form>
   <?php endif ?>
 
