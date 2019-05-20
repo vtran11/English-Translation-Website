@@ -42,65 +42,99 @@
     $username = $_SESSION['username'];
     $exist_model = false;
 
-    $query = "SELECT * FROM translateModel";
+    $query = "SELECT username FROM translateModel";
     $result = $conn->query($query);
+    $columnValues = array();
     if (!$result) die ("Database access failed: ".$conn->error);
+   
     $rows = $result->num_rows;
-
+     
     for ($j = 0 ; $j < $rows ; ++$j){
-      $result->data_seek($j);
-      $row = $result->fetch_array(MYSQLI_NUM);
-
-	    //if user has saved model
-      if ('$row[0]' == '$username'){
-        $exist_model = true;
-	    }   
-    }
+        $result->data_seek($j);
+        $row = $result->fetch_array(MYSQLI_NUM);
+        if ($row[0] == $username){
+          $exist_model = true;
+        }
+     } 
 
     //When user upload new files or enter input when the translation model DOES exist
     if($exist_model == true){
-      echo "User $username already uploaded a Translation Model! Don't upload a new one!<br>";
-
       //Flag when user trying to upload a new model
-      if($_FILES){
-        $error_type = "You already uploaded a Translation Model! Don't upload a new one!<br>";
+      if(isset($_POST["uploadfiles"])){
+        $error_type = "You already uploaded a Translation Model! Don't upload a new one!";
         echo "<script type='text/javascript'>alert('$error_type');</script>";
       }
       else{
           //If Input in english is entered
           if( isset($_POST['textinput']))
           {
-            //user has saved translate model case @@@@@@@@@@@@@@@@@@@
+            $input = strtolower(get_post($conn, 'textinput'));
 
+            $query = "SELECT translation from translateModel WHERE username = '$username' 
+                      AND english_words = '$input'";
+            $result = $conn->query($query);
+            if (!$result) die ("Database access failed: ".$conn->error);
+            $row = $result->fetch_array(MYSQLI_NUM);
+
+            echo "English: ".$input.", Vietnamese: ".$row[0];
           }
       }
     }  
     //When user upload new files or enter input when the translation model DOESNOT exist
     else 
     {
-      echo "User $username don't have any Translation Model in the system!<br>";
-
-      //Upload the files and save data to database
-      if($_FILES)
+      //WHen user submit the file
+      if(isset($_POST["uploadfiles"]))
       {
-          $name1 = "$name1.$ext";
-          $name2 = "$name2.$ext";
-          $file1 = $_FILES['filename1']['name'];
-          $file2 = $_FILES['filename2']['name'];
-          $content1 = file_get_contents($file1);
-          $content2 = file_get_contents($file2);
-          $open1 = fopen($file1, 'r') or
-                        die("File does not exist");
-          $open2 = fopen($file2, 'r') or
-                        die("File does not exist");
-          $data1 = fread($open1,20);
-          $data2 = fread($open2,20);
+        //allowing only alphanumeric characters and the period
+        $file1 = preg_replace("/[^A-Za-z0-9.]/", "", $_FILES['filename1']['name']);
+        $file2 = preg_replace("/[^A-Za-z0-9.]/", "", $_FILES['filename2']['name']);
+        $allowed =  array('txt','pdf'); //allowed file type
+        $error = false;
 
-          $query = "INSERT INTO translateModel VALUES"."('$username', $data1', '$data2')"; 
-          $result = $conn->query($query);
-    
-          if (!$result) 
-            echo "INSERT failed: $query<br>".$conn->error."<br><br>";
+        //CHECK FILE TYPE - only text or pdf file is allowed
+        $ext1 = pathinfo($file1, PATHINFO_EXTENSION);
+        $ext2 = pathinfo($file2, PATHINFO_EXTENSION);
+
+        if(!in_array($ext1,$allowed) or !in_array($ext2,$allowed)){
+          $error_type = "Sorry! Only Text files are allowed!";
+          echo "<script type='text/javascript'>alert('$error_type');</script>";
+          $error = true;
+        }
+        if($_FILES['filename1']['size'] == 0 or $_FILES['filename1']['size'] == 0){
+          $error_type = "Sorry! One or more files are empty! Please upload the new ones.";
+          echo "<script type='text/javascript'>alert('$error_type');</script>";
+          $error = true;
+        }
+        if($_FILES['filename1']['size'] > 50000 or $_FILES['filename1']['size'] > 50000){
+          $error_type = "Sorry! Your files is/are too large. Please upload smaller files!";
+          echo "<script type='text/javascript'>alert('$error_type');</script>";
+          $error = true;
+        } 
+        //files pass all requirements
+        if($error == false){
+          $path = "./";      
+          $path1 = $path.basename($file1);
+          $path2 = $path.basename($file2);
+
+          $content1 = file_get_contents($path1);
+          $content2 = file_get_contents($path2);
+
+          $line1 = explode("\n", $content1);
+          $line2 = explode("\n", $content2);
+
+          //save files' contents (translation model) to database
+          for($i=0, $count = count($line1);$i<$count;$i++) {
+            $word1  = $line1[$i];
+            $word2 = $line2[$i];
+
+            $query = "INSERT INTO translateModel VALUES"."('$username', '$word1', '$word2')"; 
+            $result = $conn->query($query);
+
+            if (!$result) 
+              echo "INSERT failed: $query<br>".$conn->error."<br><br>";
+          }
+        }
       }
       else //No file uploaded
       {
@@ -127,7 +161,6 @@
     }
 	}
   
-
   $conn->close();
   
   function get_post($conn, $var) {
@@ -238,23 +271,23 @@
   <h2> Welcome to our translator!</h2>
   <br><br>
   <?php  if (isset($_SESSION['username'])) : ?>
-    <form method='post' action='translate.php'><pre>
-      Select Translation Model in English:              <input type='file' name='filename1'> 
-      Select Translation Model in your choosen Language: <input type='file' name='filename2'> 
-      <input type='submit' value='Upload'></pre>
+    <form action="translate.php" method="post" enctype="multipart/form-data"><pre>
+      Select Translation Model in English File(txt):               <input type="file" name="filename1"> 
+      Select Translation Model in your choosen Language File(txt): <input type="file" name="filename2"> 
+      <input type="submit" value="Upload" name="uploadfiles"></pre>
       <br><br>  
     </form>
   
     <form action="translate.php" method="post"><pre>
       Enter your input in English: <input type="text" name="textinput">
-      <input type="submit" value="TRANSLATE"></pre>
+      <input type="submit" value="TRANSLATE" name="translate1"></pre>
     </form>
   <?php endif ?>
 
   <?php  if (!isset($_SESSION['username'])) : ?>
     <form action="translate.php" method="post"><pre>
       Enter your input in English: <input type="text" name="textinput">
-      <input type="submit" value="TRANSLATE"></pre>
+      <input type="submit" value="TRANSLATE" name="translate2"></pre>
       <output type="text" ID="add" name="textoutput" value="fv"></pre>
     </form>
   <?php endif ?>

@@ -91,7 +91,7 @@
 			mysqli_query($db, $query);
 
 			$_SESSION['username'] = $username;
-			header('location: translate.php');
+			header('location: loginpage.php');
 		}
 	}
 mysqli_close($db);
