@@ -11,25 +11,26 @@
   //*********************** If No Logged In User *********************************
   if (!isset($_SESSION['username'])) 
 	{
-    //User selects login then natigate to login page
+    //User selects login then navigate to login page
     if (isset($_GET['login'])){
 		  header("location: loginpage.php");
 	  }
 
-    //User selects register then natigate to register page
+    //User selects register then navigate to register page
     else if (isset($_GET['register'])){
 		  header("location: registerpage.php");
     }
 
-    //If Input in english is entered
+    //If Input in english is entered, use default model
     if( isset($_POST['textinput']))
     {
       $input = strtolower(get_post($conn, 'textinput'));
-      if(array_key_exists("$input", $eng_to_viet)){
+
+      if(array_key_exists("$input", $eng_to_viet)){ //valid input from default model
         $translation = $eng_to_viet["$input"];  
         echo "English: ".$input.", Vietnamese: ".$translation;
       }
-      else {
+      else { //invalid input not in default model
         $error_type = "Please enter valid English words!";
         echo "<script type='text/javascript'>alert('$error_type');</script>";
       }
@@ -42,22 +43,22 @@
     $username = $_SESSION['username'];
     $exist_model = false;
 
+    //check if a translation model exists for the user
     $query = "SELECT username FROM translateModel";
     $result = $conn->query($query);
     $columnValues = array();
     if (!$result) die ("Database access failed: ".$conn->error);
    
     $rows = $result->num_rows;
-     
     for ($j = 0 ; $j < $rows ; ++$j){
         $result->data_seek($j);
         $row = $result->fetch_array(MYSQLI_NUM);
         if ($row[0] == $username){
           $exist_model = true;
         }
-     } 
+    } 
 
-    //When user upload new files or enter input when the translation model DOES exist
+    //------- user upload new files or enter input when the translation model DOES exist-----------
     if($exist_model == true){
       //Flag when user trying to upload a new model
       if(isset($_POST["uploadfiles"])){
@@ -69,21 +70,26 @@
           if( isset($_POST['textinput']))
           {
             $input = strtolower(get_post($conn, 'textinput'));
-
+            //Check the database and print out the translation
             $query = "SELECT translation from translateModel WHERE username = '$username' 
                       AND english_words = '$input'";
             $result = $conn->query($query);
             if (!$result) die ("Database access failed: ".$conn->error);
             $row = $result->fetch_array(MYSQLI_NUM);
-
-            echo "English: ".$input.", Vietnamese: ".$row[0];
+            
+            if($row[0] != '')
+              echo "English: ".$input.", Vietnamese: ".$row[0];
+            else{
+                $error_type = "Sorry! The input is not in your translation Model!";
+                echo "<script type='text/javascript'>alert('$error_type');</script>";
+              }
           }
       }
     }  
-    //When user upload new files or enter input when the translation model DOESNOT exist
+    //-------- user upload new files or enter input when the translation model DOESNOT exist --------
     else 
     {
-      //WHen user submit the file
+      //When user submit the file
       if(isset($_POST["uploadfiles"]))
       {
         //allowing only alphanumeric characters and the period
@@ -123,16 +129,22 @@
           $line1 = explode("\n", $content1);
           $line2 = explode("\n", $content2);
 
-          //save files' contents (translation model) to database
-          for($i=0, $count = count($line1);$i<$count;$i++) {
-            $word1  = $line1[$i];
-            $word2 = $line2[$i];
+          if(count($line1) != count($line2)){
+            $error_type = "Sorry! Two files don't have the same # of lines! Please upload the new ones.";
+            echo "<script type='text/javascript'>alert('$error_type');</script>";
+          }
+          else{
+            //save files' contents (translation model) to database
+            for($i=0, $count = count($line1);$i<$count;$i++) {
+              $word1  = $line1[$i];
+              $word2 = $line2[$i];
 
-            $query = "INSERT INTO translateModel VALUES"."('$username', '$word1', '$word2')"; 
-            $result = $conn->query($query);
+              $query = "INSERT INTO translateModel VALUES"."('$username', '$word1', '$word2')"; 
+              $result = $conn->query($query);
 
-            if (!$result) 
-              echo "INSERT failed: $query<br>".$conn->error."<br><br>";
+              if (!$result) 
+                echo "INSERT failed: $query<br>".$conn->error."<br><br>";
+            }
           }
         }
       }
@@ -142,11 +154,11 @@
         if( isset($_POST['textinput']))
         {
           $input = strtolower(get_post($conn, 'textinput'));
-          if(array_key_exists("$input", $eng_to_viet)){
+          if(array_key_exists("$input", $eng_to_viet)){ ////valid input from default model
             $translation = $eng_to_viet["$input"];  
             echo "English: ".$input.", Vietnamese: ".$translation;
           }
-          else {
+          else { //invalid input not in default model
             $error_type = "Please enter valid English words!";
             echo "<script type='text/javascript'>alert('$error_type');</script>";
           }
@@ -156,16 +168,22 @@
     
     //user selects logout then sesion destroys
 	  if (isset($_GET['logout'])){
-		  session_destroy();
-		  unset($_SESSION['username']);
+      destroy_session_and_data();
+      unset($_SESSION['username']);
     }
 	}
-  
-  $conn->close();
-  
+    
   function get_post($conn, $var) {
-       return $conn->real_escape_string($_POST[$var]); 
+    return $conn->real_escape_string($_POST[$var]); 
   }
+
+  function destroy_session_and_data() {
+    $_SESSION = array();
+    setcookie(session_name(), '', time() - 2592000, '/');
+    session_destroy();
+  }
+
+  $conn->close();
 ?>
 
 <!DOCTYPE html>
